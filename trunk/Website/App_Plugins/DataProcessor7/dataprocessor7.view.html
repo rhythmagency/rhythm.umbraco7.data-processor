@@ -1,0 +1,18 @@
+<div ng-controller="RhythmDataProcessor">
+	<div class="umb-pane">
+		<select ng-model="selectedProcessor" ng-options="item.label for item in dataProcessors" ng-change="showProcessor()">
+			<option value="">Select a Data Processor</option>
+		</select>
+		<br /><br />
+		<div ng-repeat="property in properties">
+			<strong>{{property.label}}</strong>
+			<umb-editor model="property"></umb-editor>
+			<br />
+		</div>
+		<div>
+			<button type="button" ng-click="processData()" ng-disabled="disableProcessButton">Process Data</button>
+		</div>
+		<br /><br />
+		<div ng-bind-html="resultMessage"></div>
+	</div>
+</div>

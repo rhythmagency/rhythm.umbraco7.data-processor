@@ -1,0 +1,5 @@
+{
+  javascript: [
+    "~/App_Plugins/DataProcessor7/dataprocessor7.controller.js"
+  ]
+}
