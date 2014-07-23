@@ -1,4 +1,3 @@
-rhythm.umbraco7.data-processor
-==============================
+A version of the [Rhythm Data Processor](https://github.com/rhythmagency/rhythm.umbraco.data-processor) for Umbraco 7.
 
-An Umbraco dashboard that is easily extended to add new data processing capabilities.
+This is a work in progress.
