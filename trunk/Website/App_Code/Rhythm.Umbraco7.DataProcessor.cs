@@ -14,6 +14,7 @@
     using Umbraco.Web.Mvc;
     using Umbraco.Web.WebApi;
     using System.Web.Http;
+    using System.Net;
 
 
     #region class ProcessorKinds
@@ -322,8 +323,8 @@
         {
             return new []
             {
-                new ProcessorInput { Kind = "Nodes", Label = "Select Nodes to Move" },
-                new ProcessorInput { Kind = "Node", Label = "Select Destination Node" }
+                new ProcessorInput { Kind = ProcessorKinds.Nodes, Label = "Select Nodes to Move" },
+                new ProcessorInput { Kind = ProcessorKinds.Node, Label = "Select Destination Node" }
             };
         }
 
@@ -371,6 +372,123 @@
             // Indicate success.
             return string.Format("<h2>Success</h2>Moved {0} nodes.", sources.Length.ToString());
 
+        }
+
+    }
+
+    #endregion
+
+
+    #region class BulkCreateNodes
+
+    /// <summary>
+    /// A data processor that creates multiple nodes under a specified parent node.
+    /// </summary>
+    [UmbracoDataProcessor(Label = "Bulk Create Nodes")]
+    public static class BulkCreateNodes
+    {
+
+        /// <summary>
+        /// The types of inputs required by this data processor.
+        /// </summary>
+        /// <returns>The input types.</returns>
+        public static ProcessorInput[] Inputs()
+        {
+            return new []
+            {
+                new ProcessorInput { Kind = ProcessorKinds.Node, Label = "Select Parent Node" },
+                new ProcessorInput { Kind = ProcessorKinds.Text, Label = "Delimiter Character (Default is Comma)" },
+                new ProcessorInput { Kind = ProcessorKinds.Text, Label = "Node Names" },
+                new ProcessorInput { Kind = ProcessorKinds.Text, Label = "Document Type Alias" }
+            };
+        }
+
+
+        /// <summary>
+        /// Processes the input data.
+        /// </summary>
+        /// <param name="inputs"></param>
+        /// <returns>
+        /// A string containing markup that is shown to the user.
+        /// This will indicate success or failure.
+        /// </returns>
+        public static string ProcessInputs(List<object> inputs)
+        {
+
+            // Variables.
+            var parent = (int)inputs[0];
+            var delimiter = GetSplitDelimiter((string)inputs[1]);
+            var strNames = (string)inputs[2];
+            var doctypeAlias = (string)inputs[3];
+            var service = ApplicationContext.Current.Services.ContentService;
+            var removeEmpties = StringSplitOptions.RemoveEmptyEntries;
+
+
+            // Get list of existing node names under parent.
+            var existingNames = new HashSet<string>(
+                service.GetChildren(parent).Select(x => x.Name.ToLower()));
+
+
+            // Get names.
+            var names = strNames.Split(delimiter, removeEmpties)
+                .Select(x => x.Trim()).Where(x => !string.IsNullOrWhiteSpace(x))
+                .DistinctBy(x => x.ToLower());
+            var skippedNames = names.Where(x => existingNames.Contains(x.ToLower()));
+            names = names.Where(x => !existingNames.Contains(x.ToLower()));
+
+
+            // Create each node.
+            foreach (var name in names)
+            {
+                service.Save(service.CreateContent(name, parent, doctypeAlias));
+            }
+
+
+            // Create a message with details about the operation.
+            var li = "<li>{0}</li>";
+            var encodedSkippedNames = skippedNames
+                .Select(x => string.Format(li, WebUtility.HtmlEncode(x))).ToArray();
+            var strSkipped = string.Join("", encodedSkippedNames);
+            var encodedNames = names
+                .Select(x => string.Format(li, WebUtility.HtmlEncode(x))).ToArray();
+            var strCreated = string.Join("", encodedNames);
+            var baseSkippedMessage = "<h3>Skipped these nodes:</h3><br><ul>{0}</ul><br>";
+            var baseCreatedMessage = "<h3>Created these nodes:</h3><br><ul>{0}</ul><br>";
+            var skippedMessage = skippedNames.Any()
+                ? string.Format(baseSkippedMessage, strSkipped)
+                : "<h3>No nodes skipped.</h3><br>";
+            var createdMessage = names.Any()
+                ? string.Format(baseCreatedMessage, strCreated)
+                : "<h3>No nodes created.</h3><br>";
+            var baseMessage = "<h2>Success</h2><br>{0}{1}";
+            var message = string.Format(baseMessage, skippedMessage, createdMessage);
+
+
+            // Indicate success.
+            return message;
+
+        }
+
+
+        /// <summary>
+        /// Gets a string array for the specified delimiter.
+        /// This is useful for string split operations.
+        /// </summary>
+        /// <param name="delimiter">The delimiter.</param>
+        /// <returns>The string array containing a delimiter.</returns>
+        /// <remarks>
+        /// If the specified delimiter is null/empty, comma will be used.
+        /// </remarks>
+        private static string[] GetSplitDelimiter(string delimiter)
+        {
+            if (string.IsNullOrEmpty(delimiter))
+            {
+                return new [] { "," };
+            }
+            else
+            {
+                return new [] { delimiter };
+            }
         }
 
     }
