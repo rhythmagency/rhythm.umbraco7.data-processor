@@ -2,19 +2,14 @@
 {
 
     // Namespaces.
+    using global::Umbraco.Core;
+    using global::Umbraco.Web.Mvc;
+    using global::Umbraco.Web.WebApi;
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Web.UI;
-    using System.Web.UI.WebControls;
-    using Umbraco.Core;
-    using System.Net.Http.Formatting;
-    using System.Web;
-    using Umbraco.Core;
-    using Umbraco.Web.Mvc;
-    using Umbraco.Web.WebApi;
-    using System.Web.Http;
     using System.Net;
+    using System.Web.Http;
 
 
     #region class ProcessorKinds
@@ -489,6 +484,85 @@
             {
                 return new [] { delimiter };
             }
+        }
+
+    }
+
+    #endregion
+
+
+    #region class BulkMoveChildNodes
+
+    /// <summary>
+    /// A data processor that moves the child nodes of multiple parent nodes
+    /// to under a new parent node.
+    /// </summary>
+    [UmbracoDataProcessor(Label = "Bulk Move Child Nodes")]
+    public static class BulkMoveChildNodes
+    {
+
+        /// <summary>
+        /// The types of inputs required by this data processor.
+        /// </summary>
+        /// <returns>The input types.</returns>
+        public static ProcessorInput[] Inputs()
+        {
+            return new[]
+            {
+                new ProcessorInput { Kind = ProcessorKinds.Nodes, Label = "Select Parent Nodes of Child Nodes to Move" },
+                new ProcessorInput { Kind = ProcessorKinds.Node, Label = "Select Destination Node" }
+            };
+        }
+
+
+        /// <summary>
+        /// Processes the input data.
+        /// </summary>
+        /// <param name="inputs"></param>
+        /// <returns>
+        /// A string containing markup that is shown to the user.
+        /// This will indicate success or failure.
+        /// </returns>
+        public static string ProcessInputs(List<object> inputs)
+        {
+
+            // Variables.
+            var moveCount = 0;
+            var sources = inputs[0] as int[];
+            var destination = (int)inputs[1];
+            var service = ApplicationContext.Current.Services.ContentService;
+            var destinationNode = service.GetById(destination);
+            var removeEmpties = StringSplitOptions.RemoveEmptyEntries;
+            var comma = ",".ToCharArray();
+            var ancestors = destinationNode.Path.Split(comma, removeEmpties)
+                .Select(x => int.Parse(x)).ToArray();
+
+
+            // Ensure the destination node isn't under any of the source nodes.
+            if (ancestors.Any(x => sources.Contains(x)))
+            {
+                return "<h2>Error</h2><br />The destination node cannot be one of or reside under any of the source nodes.";
+            }
+
+
+            // Move each child node.
+            foreach (var source in sources)
+            {
+                foreach(var child in service.GetChildren(source))
+                {
+                    service.Move(child, destination);
+                    moveCount++;
+                }
+            }
+
+
+            // Refresh the XML cache.
+            umbraco.library.RefreshContent();
+
+
+            // Indicate success.
+            return string.Format("<h2>Success</h2>Moved {0} child nodes.", moveCount.ToString());
+
         }
 
     }
